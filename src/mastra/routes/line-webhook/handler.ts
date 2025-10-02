@@ -50,6 +50,11 @@ const handleFollowEvent = async (event: WebhookEvent) => {
 };
 
 const handleEventHandler = async (event: WebhookEvent, agent: any) => {
+  if ('source' in event && event.source && 'userId' in event.source) {
+    await client.showLoadingAnimation({
+      chatId: event.source.userId as string,
+    });
+  }
   switch (event.type) {
     case 'message':
       return handleMessageEvent(event, agent);
