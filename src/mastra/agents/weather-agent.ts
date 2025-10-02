@@ -16,6 +16,6 @@ export const weatherAgent = new Agent({
  
       現在の天気データを取得するには、weatherTool を使用する。
 `,
-  model: openai('gpt-5'),
+  model: openai('gpt-5-mini'),
   tools: { weatherTool },
 });
