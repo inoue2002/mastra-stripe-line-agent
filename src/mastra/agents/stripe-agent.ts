@@ -4,6 +4,7 @@ import { Memory } from '@mastra/memory';
 import { LibSQLStore } from '@mastra/libsql';
 import { weatherTool } from '../tools/weather-tool';
 import { stripeTools } from '../tools/stripe-tools';
+import { AgentResponseSchema } from './types';
 
 const stripeMemory = new Memory({
   storage: new LibSQLStore({
@@ -26,6 +27,8 @@ export const stripeAgent = new Agent({
     3. 決済リンクを発行した場合は URL と注意点（有効期限や通貨など）を簡潔に案内する
     4. 個人情報は必要最小限だけ表示し、顧客情報は要約して返す
     5. 処理結果はログを残す
+    6. 商品や価格の一覧を取得した場合、詳細情報はカードで表示されるため、簡潔な案内のみ返してください
+       例：「日本酒の商品は以下の通りです」「商品を取得しました」
 
     ## よくある利用例
     - 「東京の天気を教えて、その後テイスティング会の決済リンクを作って」
