@@ -1,4 +1,4 @@
-import { openai } from '@ai-sdk/openai';
+import { google } from '@ai-sdk/google';
 import { Agent } from '@mastra/core/agent';
 import { weatherTool } from '../tools/weather-tool';
 
@@ -16,6 +16,9 @@ export const weatherAgent = new Agent({
  
       現在の天気データを取得するには、weatherTool を使用する。
 `,
-  model: openai('gpt-5-mini'),
+  // gemini-2.0-pro もしくは gemini-1.5-flash など、現状のgenerateContentでサポートされるモデルを利用してください。
+  model: google('gemini-2.5-flash'),
+  // model: google('gemini-1.5-flash'),
+  // model: 'google/gemini-2.5-flash',
   tools: { weatherTool },
 });

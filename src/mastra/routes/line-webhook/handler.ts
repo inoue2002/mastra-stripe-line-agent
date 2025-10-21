@@ -12,7 +12,7 @@ const handleTextMessage = async (event: WebhookEvent, agent: any) => {
 
   let replyText: string;
   try {
-    const result = await agent.generate(userMessage);
+    const result = await agent.generateVNext(userMessage);
     // result.textが存在しない場合のフォールバック
     replyText = result && result.text ? result.text : 'エラーが発生しました。';
   } catch (err: any) {
