@@ -5,6 +5,29 @@ const client = new messagingApi.MessagingApiClient({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
 });
 
+// キャラクター選択関数
+const selectCharacter = (text: string) => {
+  const lowerText = text.toLowerCase();
+  
+  // 天気の状態に応じてキャラクターを選択
+  if (lowerText.includes('晴れ') || lowerText.includes('sunny') || lowerText.includes('clear')) {
+    return { name: '☀️ ひなたちゃん' };
+  } else if (lowerText.includes('雨') || lowerText.includes('rain') || lowerText.includes('rainy')) {
+    return { name: '☔ あめちゃん' };
+  } else if (lowerText.includes('曇り') || lowerText.includes('cloud') || lowerText.includes('cloudy')) {
+    return { name: '☁️ くもりん' };
+  } else if (lowerText.includes('雪') || lowerText.includes('snow') || lowerText.includes('snowy')) {
+    return { name: '⛄ ゆきちゃん' };
+  } else if (lowerText.includes('風') || lowerText.includes('wind') || lowerText.includes('windy')) {
+    return { name: '🌀 かぜまる' };
+  } else if (lowerText.includes('エラー') || lowerText.includes('error')) {
+    return { name: '⚠️ サポート' };
+  }
+  
+  // デフォルト
+  return { name: '🌤️ お天気案内' };
+};
+
 const handleTextMessage = async (event: WebhookEvent, agent: any) => {
   if (event.type !== 'message' || event.message.type !== 'text') return null;
 
@@ -20,10 +43,28 @@ const handleTextMessage = async (event: WebhookEvent, agent: any) => {
     replyText = `エラー: ${err?.message || err}`;
   }
 
+  // 返信を複数メッセージに分割
+  const messages: any[] = [];
+  
+  // 1つ目: メインの天気情報（該当するキャラクター）
+  const mainCharacter = selectCharacter(replyText);
+  messages.push({
+    type: 'text',
+    text: replyText,
+    sender: mainCharacter
+  });
+
+  // 2つ目: 追加情報（お天気案内キャラ）
+  messages.push({
+    type: 'text',
+    text: '何か他にお知りになりたいことはありますか？',
+    sender: { name: '🌤️ お天気案内' }
+  });
+
   try {
     await client.replyMessage({
       replyToken: event.replyToken,
-      messages: [{ type: 'text', text: replyText }],
+      messages: messages,
     });
   } catch (e) {
     console.error('LINEへの返信に失敗しました:', e);
