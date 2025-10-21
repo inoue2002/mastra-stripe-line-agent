@@ -67,7 +67,7 @@ const handleEventHandler = async (event: WebhookEvent, agent: any) => {
 export const lineWebhookHandler: Handler = async (c) => {
   try {
     const mastra = c.get('mastra');
-    const agent = await mastra.getAgent('weatherAgent');
+    const agent = await mastra.getAgent('stripeAgent');
 
     const logger = mastra.getLogger();
     logger.info('Line webhook received!');
