@@ -1,259 +1,171 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { StripeAgentToolkit } from '@stripe/agent-toolkit/langchain';
+import Stripe from 'stripe';
 
-type StripeToolkitMethod =
-  | 'create_payment_link'
-  | 'list_products'
-  | 'list_prices'
-  | 'create_customer';
+// Stripe Query Languageでの検索クエリを構築
+function buildQuery(options: {
+  brand?: string;
+  brewery?: string;
+  type?: string;
+  prefecture?: string;
+  ricePolishingRate?: string;
+}) {
+  const conditions: string[] = [];
 
-let cachedToolkit: StripeAgentToolkit | null = null;
-let cachedSecretKey: string | null = null;
-
-const ensureToolkit = () => {
-  const secretKey = process.env.STRIPE_SECRET_KEY;
-
-  if (!secretKey) {
-    throw new Error('STRIPE_SECRET_KEY is not set');
+  if (options.brand) {
+    conditions.push(`metadata['brand']:'${options.brand}'`);
   }
 
-  if (!cachedToolkit || cachedSecretKey !== secretKey) {
-    cachedToolkit = new StripeAgentToolkit({
-      secretKey,
-      configuration: {
-        actions: {
-          paymentLinks: { create: true },
-          products: { read: true },
-          prices: { read: true },
-          customers: { create: true },
-        },
-      },
-    });
-    cachedSecretKey = secretKey;
+  if (options.brewery) {
+    conditions.push(`metadata['brewery']:'${options.brewery}'`);
   }
 
-  return cachedToolkit;
-};
-
-const getToolkitMethod = (method: StripeToolkitMethod) => {
-  const tool = ensureToolkit()
-    .getTools()
-    .find((stripeTool) => stripeTool.method === method);
-
-  if (!tool) {
-    throw new Error(`Stripe toolkit method not available: ${method}`);
+  if (options.type) {
+    conditions.push(`metadata['type']:'${options.type}'`);
   }
 
-  return tool;
-};
-
-const invokeToolkit = async <T>(method: StripeToolkitMethod, params: Record<string, unknown>) => {
-  const tool = getToolkitMethod(method);
-  const raw = await tool.invoke(params);
-
-  if (typeof raw === 'string') {
-    try {
-      return JSON.parse(raw) as T;
-    } catch (error) {
-      console.warn(`[stripeTool] failed to parse JSON response for ${method}`, error);
-      return raw as T;
-    }
+  if (options.prefecture) {
+    conditions.push(`metadata['prefecture']:'${options.prefecture}'`);
   }
 
-  return raw as T;
-};
+  if (options.ricePolishingRate) {
+    conditions.push(`metadata['ricePolishingRate']:'${options.ricePolishingRate}'`);
+  }
 
-// const createPaymentLinkInput = z.object({
-//   priceId: z.string().describe('StripeのPrice ID'),
-//   quantity: z.number().int().min(1).max(100).optional().describe('購入数量'),
-//   redirectUrl: z.string().url().optional().describe('決済完了時に遷移させるURL'),
-// });
+  return conditions.join(' AND ');
+}
 
-// const createCustomerInput = z.object({
-//   name: z.string().describe('顧客の氏名'),
-//   email: z.string().email().optional().describe('顧客のメールアドレス'),
-// });
+// 価格範囲でフィルタリング
+function filterByPrice(
+  products: Stripe.Product[],
+  minPrice?: number,
+  maxPrice?: number
+): Stripe.Product[] {
+  if (!minPrice && !maxPrice) {
+    return products;
+  }
 
-const listProductsInput = z.object({
-  limit: z.number().int().min(1).max(100).optional().describe('取得する件数 (最大100件)'),
-});
+  return products.filter((product) => {
+    if (!product.default_price) return false;
 
-const listPricesInput = z.object({
-  productId: z.string().optional().describe('対象のProduct ID'),
-  limit: z.number().int().min(1).max(100).optional().describe('取得する件数 (最大100件)'),
-});
-
-
-// const createPaymentLink = async (input: z.infer<typeof createPaymentLinkInput>) => {
-//     const { priceId, quantity = 1, redirectUrl } = input;
-
-//     const result = await invokeToolkit<
-//       { id?: string; url?: string } | string
-//     >('create_payment_link', {
-//       price: priceId,
-//       quantity,
-//       ...(redirectUrl ? { redirect_url: redirectUrl } : {}),
-//     });
-
-//     if (!result || typeof result === 'string') {
-//       throw new Error(
-//         typeof result === 'string'
-//           ? result
-//           : 'Stripe toolkit did not return a payment link',
-//       );
-//     }
-
-//     const { id, url } = result;
-
-//     if (!id || !url) {
-//       throw new Error('Stripe toolkit returned an incomplete payment link response');
-//     }
-
-//     return {
-//       paymentLink: url,
-//       paymentLinkId: id,
-//       success: true,
-//     } as const;
-// };
-
-// const createCustomer = async (input: z.infer<typeof createCustomerInput>) => {
-//     const result = await invokeToolkit<{ id?: string } | string>('create_customer', {
-//       name: input.name,
-//       ...(input.email ? { email: input.email } : {}),
-//     });
-
-//     if (!result || typeof result === 'string') {
-//       throw new Error(
-//         typeof result === 'string' ? result : 'Stripe toolkit failed to create customer',
-//       );
-//     }
-
-//     return {
-//       customerId: result.id,
-//       name: input.name,
-//       email: input.email,
-//       success: true,
-//     } as const;
-// };
-
-const listProducts = async (input: z.infer<typeof listProductsInput>) => {
-    const result = await invokeToolkit<any>('list_products', {
-      ...(input.limit ? { limit: input.limit } : {}),
-    });
-
-    if (!Array.isArray(result)) {
-      throw new Error(
-        typeof result === 'string' ? result : 'Stripe toolkit failed to list products',
-      );
+    const price = product.default_price;
+    if (typeof price === 'string') {
+      // price IDの場合は後で解決が必要
+      return true;
     }
 
-    const products = result.map((product) => ({
-      id: product?.id,
-      name: product?.name,
-      description: product?.description ?? undefined,
-      active: Boolean(product?.active),
-    }));
+    const amount = price.unit_amount || 0;
 
-    return {
-      products,
-      success: true,
-    } as const;
-};
+    if (minPrice && amount < minPrice) return false;
+    if (maxPrice && amount > maxPrice) return false;
 
-const listPrices = async (input: z.infer<typeof listPricesInput>) => {
-    const result = await invokeToolkit<any>('list_prices', {
-      ...(input.productId ? { product: input.productId } : {}),
-      ...(input.limit ? { limit: input.limit } : {}),
-    });
+    return true;
+  });
+}
 
-    if (!Array.isArray(result)) {
-      throw new Error(
-        typeof result === 'string' ? result : 'Stripe toolkit failed to list prices',
-      );
-    }
-
-    const prices = result.map((price) => ({
-      id: price?.id,
-      nickname: price?.nickname ?? undefined,
-      currency: price?.currency,
-      unitAmount: price?.unit_amount ?? undefined,
-      active: Boolean(price?.active),
-    }));
-
-    return {
-      prices,
-      success: true,
-    } as const;
-};
-
-
-// export const createPaymentLinkTool = createTool({
-//   id: 'stripe-create-payment-link',
-//   description: 'StripeのPrice IDから決済リンクを生成する',
-//   inputSchema: createPaymentLinkInput,
-//   outputSchema: z.object({
-//     paymentLink: z.string(),
-//     paymentLinkId: z.string(),
-//     success: z.literal(true),
-//   }),
-//   execute: async ({ context }) => createPaymentLink(context),
-// });
-
-// export const createCustomerTool = createTool({
-//   id: 'stripe-create-customer',
-//   description: 'Stripeで新規顧客を作成する',
-//   inputSchema: createCustomerInput,
-//   outputSchema: z.object({
-//     customerId: z.string(),
-//     name: z.string(),
-//     email: z.string().email().optional(),
-//     success: z.literal(true),
-//   }),
-//   execute: async ({ context }) => createCustomer(context),
-// });
-
-export const listProductsTool = createTool({
-  id: 'stripe-list-products',
-  description: 'Stripeに登録されている商品一覧を取得する',
-  inputSchema: listProductsInput,
+export const searchProductsTool = createTool({
+  id: 'search-products',
+  description: 'Stripeで商品を検索する。ブランド、酒造、種類、都道府県、精米歩合、価格範囲などで検索できます。',
+  inputSchema: z.object({
+    brand: z.string().optional().describe('ブランド名'),
+    brewery: z.string().optional().describe('酒造名'),
+    type: z.string().optional().describe('種類（例: 純米吟醸）'),
+    prefecture: z.string().optional().describe('都道府県'),
+    ricePolishingRate: z.string().optional().describe('精米歩合'),
+    minPrice: z.number().optional().describe('最小価格（円）'),
+    maxPrice: z.number().optional().describe('最大価格（円）'),
+    limit: z.number().optional().default(10).describe('取得件数（デフォルト: 10）'),
+  }),
   outputSchema: z.object({
     products: z.array(
       z.object({
-        id: z.string().optional(),
-        name: z.string().optional(),
-        description: z.string().optional(),
-        active: z.boolean(),
-      }),
-    ),
-    success: z.literal(true),
+        id: z.string().describe('Product ID'),
+        name: z.string().describe('商品名'),
+        description: z.string().nullable().describe('商品説明'),
+        price: z.number().nullable().describe('価格（円）'),
+        priceId: z.string().nullable().describe('Price ID'),
+        metadata: z.record(z.string()).describe('メタデータ'),
+      })
+    ).describe('検索結果の商品一覧'),
+    count: z.number().describe('検索結果件数'),
   }),
-  execute: async ({ context }) => listProducts(context),
-});
+  execute: async (context: any) => {
+    const { brand, brewery, type, prefecture, ricePolishingRate, minPrice, maxPrice, limit = 10 } = context;
+    const apiKey = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_API_KEY;
+    
+    if (!apiKey) {
+      throw new Error('Stripe API キーが設定されていません。環境変数 STRIPE_SECRET_KEY または STRIPE_API_KEY を設定してください。');
+    }
 
-export const listPricesTool = createTool({
-  id: 'stripe-list-prices',
-  description: 'StripeのPrice一覧を取得する',
-  inputSchema: listPricesInput,
-  outputSchema: z.object({
-    prices: z.array(
-      z.object({
-        id: z.string().optional(),
-        nickname: z.string().optional(),
-        currency: z.string().optional(),
-        unitAmount: z.number().optional(),
-        active: z.boolean(),
-      }),
-    ),
-    success: z.literal(true),
-  }),
-  execute: async ({ context }) => listPrices(context),
-});
+    const stripe = new Stripe(apiKey, {
+      apiVersion: '2025-10-29.clover',
+    });
 
+    try {
+      // 検索クエリを構築
+      const query = buildQuery({ brand, brewery, type, prefecture, ricePolishingRate });
+
+      const searchParams = query
+        ? ({
+            limit: limit,
+            query: query,
+          } as Stripe.ProductSearchParams)
+        : ({
+            limit: limit,
+          } as any);
+
+      // Product検索（クエリがない場合は list を使用）
+      const products = query && query.length > 0
+        ? await stripe.products.search(searchParams)
+        : await stripe.products.list({ limit: limit });
+
+      // 価格範囲でフィルタリング
+      let filteredProducts: Stripe.Product[] = products.data;
+      if (minPrice || maxPrice) {
+        // 価格IDを解決してフィルタリング
+        filteredProducts = await Promise.all(
+          products.data.map(async (product: Stripe.Product) => {
+            if (product.default_price && typeof product.default_price === 'string') {
+              const price = await stripe.prices.retrieve(product.default_price);
+              product.default_price = price;
+            }
+            return product;
+          })
+        );
+        filteredProducts = filterByPrice(filteredProducts, minPrice, maxPrice);
+      }
+
+      // 結果を整形
+      const formattedProducts = filteredProducts.map((product: Stripe.Product) => {
+        const price = product.default_price;
+        const priceAmount =
+          typeof price === 'object' && price?.unit_amount ? price.unit_amount : null;
+        const priceId =
+          typeof price === 'string' ? price : typeof price === 'object' ? price?.id || null : null;
+
+        return {
+          id: product.id,
+          name: product.name,
+          description: product.description,
+          price: priceAmount,
+          priceId: priceId,
+          metadata: product.metadata || {},
+        };
+      });
+
+      return {
+        products: formattedProducts,
+        count: formattedProducts.length,
+      };
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`Stripe商品検索エラー: ${error.message}`);
+      }
+      throw error;
+    }
+  },
+});
 
 export const stripeTools = {
-  // createPaymentLinkTool,
-  // createCustomerTool,
-  listProductsTool,
-  listPricesTool,
+  searchProductsTool,
 };
