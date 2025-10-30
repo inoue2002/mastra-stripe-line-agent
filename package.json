@@ -24,6 +24,7 @@
     "@mastra/libsql": "^0.15.0",
     "@mastra/memory": "^0.15.4",
     "@stripe/agent-toolkit": "^0.7.11",
+    "stripe": "^19.2.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {

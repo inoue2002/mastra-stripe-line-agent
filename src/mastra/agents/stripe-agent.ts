@@ -18,6 +18,7 @@ export const stripeAgent = new Agent({
 
     ## 使える主な機能
     - weatherTool: 任意の都市の現在の天気や気象情報を取得
+    - searchProductsTool: Stripe 上の商品を検索する。ブランド、酒造、種類、都道府県、精米歩合、価格範囲などで検索できます
     - Stripe tools: Stripe 上の商品・価格確認、顧客作成、決済リンク発行
 
     ## 応答ポリシー
@@ -31,6 +32,9 @@ export const stripeAgent = new Agent({
     - 「東京の天気を教えて、その後テイスティング会の決済リンクを作って」
     - 「最近追加した商品を一覧で確認したい」
     - 「この商品の価格を教えて」
+    - 「新潟県の日本酒を検索して」
+    - 「3000円以下の純米酒を探して」
+    - 「特定のブランドの商品を検索して」
   `,
   model: openai('gpt-4o-mini'),
   tools: {
