@@ -40,8 +40,6 @@ function buildQuery(options: {
 }
 
 
-
-
 export const searchProductsTool = createTool({
   id: 'search-products',
   description: 'Stripeで商品を検索する。ブランド、酒造、種類、都道府県、精米歩合、価格範囲などで検索できます。',

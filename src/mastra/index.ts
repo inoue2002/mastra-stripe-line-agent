@@ -2,6 +2,7 @@ import { Mastra } from '@mastra/core/mastra';
 import { PinoLogger } from '@mastra/loggers';
 import { weatherAgent } from './agents/weather-agent';
 import { stripeAgent } from './agents/stripe-agents';
+import { createLineWebhookRoutes } from './routes/line-webhook'
 
 export const mastra = new Mastra({
   agents: { weatherAgent, stripeAgent },
@@ -9,4 +10,7 @@ export const mastra = new Mastra({
     name: 'Mastra',
     level: 'info',
   }),
+  server: {
+    apiRoutes: createLineWebhookRoutes()
+  }
 });

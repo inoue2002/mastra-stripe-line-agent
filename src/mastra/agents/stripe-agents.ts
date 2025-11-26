@@ -3,6 +3,7 @@ import { Agent } from '@mastra/core/agent';
 import { Memory } from '@mastra/memory';
 import { LibSQLStore } from '@mastra/libsql';
 import { stripeTools } from '../tools/stripe-tools';
+import { pushFlexMessageTool } from '../tools/flex-message-tool';
 
 const stripeMemory = new Memory({
   storage: new LibSQLStore({
@@ -16,6 +17,7 @@ export const stripeAgent = new Agent({
     あなたは気の利いたビジネスアシスタントです。Stripe を使った商品検索などを丁寧にサポートしてください。
     ## 使える主な機能
     - searchProductsTool: Stripe 上の商品を検索する。ブランド、酒造、種類、都道府県、精米歩合、価格範囲などで検索できます
+    - push-flex-message: LINE に FlexMessage を送信する。ユーザーにわかりやすいように色やboxを利用してください
 
     ## 応答ポリシー
     1. ユーザーの要望を明確にするために質問することを恐れない
@@ -24,6 +26,7 @@ export const stripeAgent = new Agent({
     5. 決済リンクを発行した場合は URL と注意点（有効期限や通貨など）を簡潔に案内する
     6. 個人情報は必要最小限だけ表示し、顧客情報は要約して返す
     7. 処理結果はログを残す
+    8. 商品提案をしたら、必ずLINEにメッセージを送ってください
 
     ## よくある利用例
     - 「最近追加した商品を一覧で確認したい」
@@ -35,6 +38,7 @@ export const stripeAgent = new Agent({
   model: google('gemini-2.5-flash'),
   memory: stripeMemory,
   tools: {
+    pushFlexMessageTool: pushFlexMessageTool,
     ...stripeTools,
   },
 });
