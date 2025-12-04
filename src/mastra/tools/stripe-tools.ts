@@ -2,10 +2,6 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import Stripe from 'stripe';
 
-import { createTool } from '@mastra/core/tools';
-import { z } from 'zod';
-import Stripe from 'stripe';
-
 // Stripe Query Languageでの検索クエリを構築
 function buildQuery(options: {
   brand?: string;
